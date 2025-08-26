@@ -1,103 +1,145 @@
+"use client";
+
 import Image from "next/image";
+import { memo, useMemo, useState } from "react";
+import useSWRInfinite from "swr/infinite";
+
+type Product = {
+  id: number;
+  title: string;
+  description?: string;
+  image_link: string;
+  brand?: string;
+  list_price?: string;
+  sale_price?: string;
+  category?: string;
+  color?: string;
+};
+
+type PageResult = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: Product[];
+};
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const PAGE_SIZE = 20;
+
+const ProductCard = memo(function ProductCard({ p }: { p: Product }) {
+  return (
+    <article className="border rounded p-4 shadow-sm">
+      <Image
+        src={p.image_link}
+        alt={p.title}
+        width={300}
+        height={400}
+        sizes="(min-width: 768px) 33vw, 50vw"
+        className="object-cover w-full h-auto"
+        loading="lazy"
+      />
+      <h2 className="mt-2 font-semibold">{p.title}</h2>
+      {p.brand && <p className="text-sm text-gray-600">{p.brand}</p>}
+      {p.sale_price && <p className="text-red-600">{p.sale_price}</p>}
+      {p.list_price && <p className="line-through text-gray-400">{p.list_price}</p>}
+    </article>
+  );
+});
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [q, setQ] = useState("");
+  const [category, setCategory] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // Build the SWR key for each page
+  const getKey = (pageIndex: number, prev: PageResult | null) => {
+    if (prev && prev.items.length === 0) return null; // reached the end
+    const page = pageIndex + 1;
+    const params = new URLSearchParams({
+      q,
+      category,
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
+    });
+    return `/api/products?${params.toString()}`;
+  };
+
+  const { data, error, isValidating, size, setSize } = useSWRInfinite<PageResult>(getKey, fetcher, {
+    revalidateOnFocus: false,
+  });
+
+  const items = useMemo(
+    () => (data ? data.flatMap((d) => d.items) : []),
+    [data]
+  );
+  const total = data?.[0]?.total ?? 0;
+  const hasMore = items.length < total;
+
+  const loading = !data && !error;
+
+  return (
+    <main className="max-w-5xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Italist Products</h1>
+
+      <div className="flex flex-col md:flex-row gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Search products..."
+          aria-label="Search products"
+          value={q}
+          onChange={(e) => {
+            setSize(0); // reset cache
+            setQ(e.target.value);
+          }}
+          className="border p-2 w-full md:w-1/2"
+        />
+
+        <select
+          aria-label="Filter by category"
+          value={category}
+          onChange={(e) => {
+            setSize(0); // reset cache
+            setCategory(e.target.value);
+          }}
+          className="border p-2 w-full md:w-1/3"
+        >
+          <option value="">All categories</option>
+          <option>Clothing</option>
+          <option>Accessories</option>
+          <option>Bags</option>
+          <option>Jewelry</option>
+        </select>
+      </div>
+
+      {error && (
+        <p role="alert" className="text-red-600 mb-4">
+          Failed to load products
+        </p>
+      )}
+
+      <section
+        aria-live="polite"
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
+      >
+        {items.map((p) => (
+          <ProductCard key={p.id} p={p} />
+        ))}
+      </section>
+
+      <div className="mt-6 flex justify-center">
+        {hasMore && (
+          <button
+            onClick={() => setSize(size + 1)}
+            disabled={loading || isValidating}
+            className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
+            aria-label="Load more products"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            {loading || isValidating ? "Loading..." : "Load More"}
+          </button>
+        )}
+        {!hasMore && items.length > 0 && (
+          <p className="text-sm text-gray-500">No more results.</p>
+        )}
+      </div>
+    </main>
   );
 }

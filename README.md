@@ -1,36 +1,217 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+# 🛍️ Italist Frontend Assignment – Product Data App
 
-First, run the development server:
+A simple product listing web app built with **Next.js + React**, based on the provided product JSON data.  
+The app includes search, filtering, pagination, SEO, accessibility best practices, and performance optimizations.
+
+---
+
+## 📌 Features
+
+✅ Product listing from mocked API (using provided JSON)  
+✅ Search by product title  
+✅ Filter by category  
+✅ Pagination / "Load More" button  
+✅ SEO metadata (title, description, Open Graph)  
+✅ Accessible HTML semantics and ARIA labels  
+✅ Image optimization with `next/image`  
+✅ Lazy loading of images  
+✅ Basic unit tests with Jest + React Testing Library  
+
+---
+
+## 🛠 Tech Stack
+
+- **Next.js 14+** (App Router)
+- **React 18**
+- **TypeScript**
+- **Next/Image**
+- **Tailwind CSS** (optional for styling)
+- **Jest + Testing Library** for tests
+
+---
+
+## ⚙️ Getting Started
+
+### 1️⃣ Install Node.js
+
+Make sure you have Node.js (v18+) installed.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+node -v
+npm -v
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+If not installed, download from https://nodejs.org
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2️⃣ Create the project (already done)
 
-## Learn More
+If starting from scratch, run:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx create-next-app@latest my-app
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Select:
+- ✅ TypeScript: Yes
+- ✅ ESLint: Yes
+- ✅ Tailwind CSS: Yes (optional)
+- ✅ App Router: Yes
+- ✅ Import alias: `@/*`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+### 3️⃣ Add the product data
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Create a folder `src/data/` and place the provided file there:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+my-app/
+└── src/
+    └── data/
+        └── product_data.json
+```
+
+> The UI imports from `@/data/product_data.json` (thanks to the `@/* -> src/*` alias).  
+> Make sure TypeScript has `"resolveJsonModule": true` in `tsconfig.json`.
+
+---
+
+### 4️⃣ Whitelist image domain
+
+Your project uses **`next.config.ts`**. Add the Italist CDN domain so `next/image` can optimize external images:
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  images: {
+    domains: ['cdn-images.italist.com'],
+  },
+};
+
+export default nextConfig;
+```
+
+---
+
+### 5️⃣ Run the development server
+
+```bash
+npm install
+npm run dev
+```
+Open 👉 http://localhost:3000
+
+---
+
+## 📦 Build & Production
+
+```bash
+npm run build
+npm run start
+```
+The production server runs on http://localhost:3000
+
+---
+
+## 🧪 Testing
+
+Run tests:
+
+```bash
+npm run test
+```
+
+Tests use **Jest** and **@testing-library/react**.  
+They cover:
+- Rendering the product list
+- Filtering with search input
+- (Optional) Category filter
+- (Optional) Pagination / Load More button
+
+---
+
+## 📁 Folder Structure (matches your repo)
+
+```
+my-app/
+├─ __tests__/
+│  └─ index.test.tsx
+├─ public/
+├─ src/
+│  ├─ app/
+│  │  ├─ favicon.ico
+│  │  ├─ layout.tsx
+│  │  └─ page.tsx
+│  ├─ data/
+│  │  └─ product_data.json
+│  └─ styles/
+│     └─ globals.css
+├─ .next/                 # generated
+├─ node_modules/          # generated
+├─ eslint.config.mjs
+├─ jest.config.js
+├─ jest.setup.ts
+├─ next-env.d.ts
+├─ next.config.ts
+├─ package.json
+├─ package-lock.json
+├─ postcss.config.mjs
+├─ tsconfig.json
+└─ README.md
+```
+
+> If you add the optional API route later, it would live at: `src/app/api/products/route.ts`.
+
+---
+
+## 🔍 SEO & Accessibility
+
+- App Router `metadata` in `src/app/layout.tsx` includes:
+  - `title`, `description`
+  - Open Graph tags
+- Semantic HTML: `<main>`, `<h1>`, `<article>`
+- Inputs have `aria-label` for accessibility
+- Images include descriptive `alt` attributes
+
+---
+
+## ⚡ Performance
+
+- `next/image` for optimization + lazy loading
+- `useMemo` to avoid unnecessary re-renders while filtering
+- Pagination / load-more to avoid rendering the entire dataset at once
+
+---
+
+## 🚀 Deployment (Vercel)
+
+1. Push to GitHub/GitLab/Bitbucket.  
+2. Go to https://vercel.com and **Import Project**.  
+3. Vercel detects Next.js automatically. Defaults are fine:  
+   - Build Command: `npm run build`  
+   - Output Directory: `.next`  
+4. Click **Deploy** → get a live URL like `https://my-app.vercel.app`
+
+---
+
+## ✅ Commands Summary
+
+| Command         | Description                                   |
+|-----------------|-----------------------------------------------|
+| `npm run dev`   | Run local dev server (http://localhost:3000)  |
+| `npm run build` | Build production bundle                       |
+| `npm run start` | Start production server                       |
+| `npm run test`  | Run unit tests                                |
+| `npm run lint`  | Run ESLint (if enabled)                       |
+
+---
+
+## 👨‍💻 Author
+
+This project was created as part of a take-home assignment for **Italist**.  
+Built with ❤️ using modern web tools.
