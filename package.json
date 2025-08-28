@@ -12,6 +12,8 @@
     "test:ci": "jest --runInBand"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "lucide-react": "^0.542.0",
     "next": "15.5.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",

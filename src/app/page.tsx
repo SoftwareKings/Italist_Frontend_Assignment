@@ -1,144 +1,120 @@
 "use client";
 
-import Image from "next/image";
-import { memo, useMemo, useState } from "react";
-import useSWRInfinite from "swr/infinite";
-
-type Product = {
-  id: number;
-  title: string;
-  description?: string;
-  image_link: string;
-  brand?: string;
-  list_price?: string;
-  sale_price?: string;
-  category?: string;
-  color?: string;
-};
-
-type PageResult = {
-  page: number;
-  pageSize: number;
-  total: number;
-  items: Product[];
-};
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-const PAGE_SIZE = 20;
-
-const ProductCard = memo(function ProductCard({ p }: { p: Product }) {
-  return (
-    <article className="border rounded p-4 shadow-sm">
-      <Image
-        src={p.image_link}
-        alt={p.title}
-        width={300}
-        height={400}
-        sizes="(min-width: 768px) 33vw, 50vw"
-        className="object-cover w-full h-auto"
-        loading="lazy"
-      />
-      <h2 className="mt-2 font-semibold">{p.title}</h2>
-      {p.brand && <p className="text-sm text-gray-600">{p.brand}</p>}
-      {p.sale_price && <p className="text-red-600">{p.sale_price}</p>}
-      {p.list_price && <p className="line-through text-gray-400">{p.list_price}</p>}
-    </article>
-  );
-});
+import { useMemo, useState, useEffect } from "react";
+import Header from "@/components/Header";
+import FilterTabs, { FilterValue } from "@/components/FilterTabs";
+import SearchBar from "@/components/SearchBar";
+import ProductCard from "@/components/ProductCard";
+import { Product } from "@/data/types";
 
 export default function Home() {
-  const [q, setQ] = useState("");
-  const [category, setCategory] = useState("");
+  const [query, setQuery] = useState("");
+  const [selectedFilters, setSelectedFilters] = useState<FilterValue[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [products, setProducts] = useState<Product[]>([]);
+  const pageSize = 12;
 
-  // Build the SWR key for each page
-  const getKey = (pageIndex: number, prev: PageResult | null) => {
-    if (prev && prev.items.length === 0) return null; // reached the end
-    const page = pageIndex + 1;
-    const params = new URLSearchParams({
-      q,
-      category,
-      page: String(page),
-      pageSize: String(PAGE_SIZE),
+  useEffect(() => {
+    async function fetchProducts() {
+      const res = await fetch("/api/products");
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        setProducts(data);
+      } else if (data.products && Array.isArray(data.products)) {
+        setProducts(data.products);
+      } else {
+        console.error("Unexpected API response:", data);
+        setProducts([]);
+      }
+    }
+    fetchProducts();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = (query || "").trim().toLowerCase();
+
+    return products.filter((p) => {
+      // Matches filters
+      const matchesFilter =
+        selectedFilters.length === 0 ||
+        selectedFilters.some(
+          (filter) => p.status.toLowerCase() === filter.toLowerCase()
+        );
+
+      // Matches search query
+      const title = p?.title || "";
+      const brand = p?.brand || "";
+
+      const matchesQuery =
+        !q ||
+        title.toLowerCase().includes(q) ||
+        brand.toLowerCase().includes(q);
+
+      return matchesFilter && matchesQuery;
     });
-    return `/api/products?${params.toString()}`;
-  };
+  }, [query, selectedFilters, products]);
 
-  const { data, error, isValidating, size, setSize } = useSWRInfinite<PageResult>(getKey, fetcher, {
-    revalidateOnFocus: false,
-  });
 
-  const items = useMemo(
-    () => (data ? data.flatMap((d) => d.items) : []),
-    [data]
-  );
-  const total = data?.[0]?.total ?? 0;
-  const hasMore = items.length < total;
+  const paginated = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filtered.slice(startIndex, startIndex + pageSize);
+  }, [filtered, currentPage]);
 
-  const loading = !data && !error;
+  function toggleFilter(filter: FilterValue) {
+    setSelectedFilters((prev) =>
+      prev.includes(filter)
+        ? prev.filter((f) => f !== filter)
+        : [...prev, filter]
+    );
+}
 
   return (
-    <main className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Italist Products</h1>
+    <main className="min-h-screen bg-gray-50 px-[16px] sm:px-[32px] py-[100px]">
+      <div className="max-w-[1259px] mx-auto">
+        <Header title="Fake products" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between py-[20px] gap-5">
+          <FilterTabs 
+            value={selectedFilters}
+             onChange={(newFilter) => {
+              toggleFilter(newFilter);
+              setCurrentPage(1);
+            }}
+          />
+          <SearchBar value={query} onChange={setQuery}/>
+        </div>
 
-      <div className="flex flex-col md:flex-row gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Search products..."
-          aria-label="Search products"
-          value={q}
-          onChange={(e) => {
-            setSize(0); // reset cache
-            setQ(e.target.value);
-          }}
-          className="border p-2 w-full md:w-1/2"
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          {paginated.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
 
-        <select
-          aria-label="Filter by category"
-          value={category}
-          onChange={(e) => {
-            setSize(0); // reset cache
-            setCategory(e.target.value);
-          }}
-          className="border p-2 w-full md:w-1/3"
-        >
-          <option value="">All categories</option>
-          <option>Clothing</option>
-          <option>Accessories</option>
-          <option>Bags</option>
-          <option>Jewelry</option>
-        </select>
-      </div>
-
-      {error && (
-        <p role="alert" className="text-red-600 mb-4">
-          Failed to load products
-        </p>
-      )}
-
-      <section
-        aria-live="polite"
-        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
-      >
-        {items.map((p) => (
-          <ProductCard key={p.id} p={p} />
-        ))}
-      </section>
-
-      <div className="mt-6 flex justify-center">
-        {hasMore && (
+        <div className="flex justify-center items-center gap-2 mt-10">
           <button
-            onClick={() => setSize(size + 1)}
-            disabled={loading || isValidating}
-            className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
-            aria-label="Load more products"
+            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
           >
-            {loading || isValidating ? "Loading..." : "Load More"}
+            Prev
           </button>
-        )}
-        {!hasMore && items.length > 0 && (
-          <p className="text-sm text-gray-500">No more results.</p>
-        )}
+
+          <span className="px-3 py-1 font-medium">
+            Page {currentPage} of {Math.ceil(filtered.length / pageSize)}
+          </span>
+
+          <button
+            onClick={() =>
+              setCurrentPage((p) =>
+                p < Math.ceil(filtered.length / pageSize) ? p + 1 : p
+              )
+            }
+            disabled={currentPage >= Math.ceil(filtered.length / pageSize)}
+            className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </main>
   );

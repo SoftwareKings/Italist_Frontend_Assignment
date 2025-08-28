@@ -1,130 +1,141 @@
-/**
- * Tests for src/app/page.tsx (useSWRInfinite)
- */
-import { render, screen, fireEvent, act } from '@testing-library/react';
-import { SWRConfig } from 'swr';
-import Home from '@/app/page';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import Home from "@/app/page"
+import { Product } from "@/data/types";
 
-// ---------- Helpers ----------
-type Product = {
-  id: number; title: string; image_link: string;
-  brand?: string; list_price?: string; sale_price?: string;
-  category?: string; color?: string;
-};
-type PageResult = { page: number; pageSize: number; total: number; items: Product[] };
+// Mock fetch
+const mockProducts: Product[] = [
+  {
+    id: 1,
+    title: "Classic Belt",
+    brand: "Sofie d'Hoore",
+    status: "featured",
+    description: "A belt",
+    category: "Accessories",
+    collection: "SS17",
+    color: "gray",
+    condition: "New",
+    gender: "female",
+    product_type: "Women > Accessories > Belts",
+    raw_color: "gray",
+    list_price: "285",
+    sale_price: "239",
+    review_number: 177,
+    review_star: 4,
+    availability: "In stock",
+    material: "",
+    mpn: "VALSE-LCODE",
+    gtin: "",
+    item_group_id: 8135252,
+    link: "https://example.com",
+    image_link: "https://example.com/belt.jpg",
+    additional_image_link: "",
+    additional_image_link_2: "",
+    additional_image_link_3: "",
+    additional_image_link_4: "",
+    shipping: "Free",
+    size_format: "cm",
+    size_type: "Regular",
+    sizes: "85",
+    sizing_schema: "Belts",
+  },
+  {
+    id: 2,
+    title: "Laced Dress",
+    brand: "Stella McCartney",
+    status: "new arrival",
+    description: "A dress",
+    category: "Clothing",
+    collection: "SS20",
+    color: "white",
+    condition: "New",
+    gender: "female",
+    product_type: "Women > Clothing > Dresses",
+    raw_color: "white",
+    list_price: "2500",
+    sale_price: "2200",
+    review_number: 200,
+    review_star: 5,
+    availability: "In stock",
+    material: "Cotton",
+    mpn: "",
+    gtin: "",
+    item_group_id: 12345,
+    link: "https://example.com",
+    image_link: "https://example.com/dress.jpg",
+    additional_image_link: "",
+    additional_image_link_2: "",
+    additional_image_link_3: "",
+    additional_image_link_4: "",
+    shipping: "Free",
+    size_format: "cm",
+    size_type: "Regular",
+    sizes: "M",
+    sizing_schema: "Clothing",
+  },
+];
 
-const makeItem = (n: number, extra: Partial<Product> = {}): Product => ({
-  id: n,
-  title: `Product ${n}`,
-  image_link: 'https://example.com/img.jpg',
-  ...extra,
+beforeAll(() => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve(mockProducts),
+    })
+  ) as jest.Mock;
 });
 
-const makePage = (page: number, totalItems: number, pageSize = 20): PageResult => {
-  const start = (page - 1) * pageSize + 1;
-  const end = Math.min(totalItems, start + pageSize - 1);
-  const items: Product[] = [];
-  for (let i = start; i <= end; i++) {
-    items.push(makeItem(i, { category: i % 2 ? 'Bags' : 'Clothing' }));
-  }
-  return { page, pageSize, total: totalItems, items };
-};
+describe("Home Page", () => {
+  it("renders products from API", async () => {
+    render(<Home />);
 
-const getParams = (url: string) => {
-  const u = new URL(String(url), 'http://localhost');
-  return Object.fromEntries(u.searchParams.entries());
-};
-
-// Fresh SWR cache per test (prevents dedupe/bleed)
-const renderWithFreshSWR = (ui: React.ReactElement) =>
-  render(<SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{ui}</SWRConfig>);
-
-// Default OK fetch (paged) — NO `Response` constructor
-const installFetchOk = (totalItems = 45) => {
-  (global.fetch as jest.Mock) = jest.fn().mockImplementation((input: RequestInfo) => {
-    const { page = '1', pageSize = '20' } = getParams(String(input));
-    const payload = makePage(Number(page), totalItems, Number(pageSize));
-    // minimal shape the fetcher needs
-    return Promise.resolve({
-      json: async (): Promise<PageResult> => payload,
-    } as unknown as Response);
-  });
-};
-
-// ---------- Jest setup ----------
-beforeEach(() => {
-  installFetchOk();
-});
-
-afterEach(() => {
-  jest.resetAllMocks();
-});
-
-// ---------- Tests ----------
-it('renders heading and loads first page of products', async () => {
-  renderWithFreshSWR(<Home />);
-  expect(screen.getByRole('heading', { name: /Italist Products/i })).toBeInTheDocument();
-
-  // Wait for at least one product card
-  const articles = await screen.findAllByRole('article');
-  expect(articles.length).toBeGreaterThan(0);
-
-  // Ensure page=1 requested
-  const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
-  expect(calls.some((u) => u.includes('page=1'))).toBe(true);
-});
-
-it('search resets to page 1 and calls API with q param', async () => {
-  renderWithFreshSWR(<Home />);
-  await screen.findAllByRole('article');
-
-  const input = screen.getByLabelText(/Search products/i);
-  await act(async () => {
-    fireEvent.change(input, { target: { value: 'Dress' } });
-  });
-
-  const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
-  const last = calls.at(-1) || '';
-  expect(last).toMatch(/q=Dress/);
-  expect(last).toMatch(/page=1/);
-});
-
-it('changing category triggers a new fetch with category param', async () => {
-  renderWithFreshSWR(<Home />);
-  await screen.findAllByRole('article');
-
-  const select = screen.getByLabelText(/Filter by category/i);
-  await act(async () => {
-    fireEvent.change(select, { target: { value: 'Bags' } });
+    expect(await screen.findByText("Classic Belt")).toBeInTheDocument();
+    expect(await screen.findByText("Laced Dress")).toBeInTheDocument();
   });
 
-  const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
-  const last = calls.at(-1) || '';
-  expect(last).toMatch(/category=Bags/);
-  expect(last).toMatch(/page=1/);
-});
+  it("filters products by search query", async () => {
+    render(<Home />);
+    const searchInput = await screen.findByPlaceholderText("Search Products");
 
-it('clicking Load More fetches next page and appends items', async () => {
-  renderWithFreshSWR(<Home />);
-  const firstPage = await screen.findAllByRole('article');
-  const before = firstPage.length;
+    fireEvent.change(searchInput, { target: { value: "Belt" } });
 
-  const loadMoreBtn = screen.getByRole('button', { name: /Load more products/i });
-  await act(async () => {
-    fireEvent.click(loadMoreBtn);
+    await waitFor(() => {
+      expect(screen.getByText("Classic Belt")).toBeInTheDocument();
+      expect(screen.queryByText("Laced Dress")).not.toBeInTheDocument();
+    });
   });
 
-  const after = await screen.findAllByRole('article');
-  expect(after.length).toBeGreaterThan(before);
+  it("applies filter tabs", async () => {
+    render(<Home />);
+    const filterButton = await screen.findByText("Featured");
 
-  const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
-  expect(calls.some((u) => u.includes('page=2'))).toBe(true);
-});
+    fireEvent.click(filterButton);
 
-it('shows error message when API fails', async () => {
-  // Fail first request
-  (global.fetch as jest.Mock) = jest.fn().mockRejectedValueOnce(new Error('Network down'));
-  renderWithFreshSWR(<Home />);
-  const alert = await screen.findByRole('alert');
-  expect(alert).toHaveTextContent(/Failed to load products/i);
+    await waitFor(() => {
+      expect(screen.getByText("Classic Belt")).toBeInTheDocument();
+      expect(screen.queryByText("Laced Dress")).not.toBeInTheDocument();
+    });
+  });
+
+  it("paginates products", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          Array.from({ length: 20 }, (_, i) => ({
+            ...mockProducts[0],
+            id: i + 1,
+            title: `Classic Belt ${i + 1}`,
+          }))
+        ),
+    });
+
+    render(<Home />);
+
+    // Page 1 shows first product
+    expect(await screen.findByText("Classic Belt 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Next"));
+
+    // Page 2 shows product 13
+    await waitFor(() => {
+      expect(screen.getByText("Classic Belt 13")).toBeInTheDocument();
+    });
+  });
 });
